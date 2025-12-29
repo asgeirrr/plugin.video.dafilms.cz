@@ -1,0 +1,1 @@
+# Kodi addon resources package
