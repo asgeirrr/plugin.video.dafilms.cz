@@ -1,0 +1,35 @@
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# Enable Pyflakes rules
+select = ["E", "F"]
+# Also enable some useful rules
+extend-select = [
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "T20", # flake8-print
+]
+
+# Ignore some rules that might be too strict for Kodi addons
+ignore = [
+    "E501", # Line too long (Kodi addons often have long URLs)
+    "F401", # Unused imports (some imports are needed for Kodi)
+    "B008", # Do not perform function calls in argument defaults
+]
+
+# Exclude files
+exclude = [
+    "resources/lib/__pycache__",
+    ".venv",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["resources"]
+
+[tool.ruff.lint.per-file-ignores]
+"resources/lib/main.py" = ["E402"]  # Module level import not at top of file

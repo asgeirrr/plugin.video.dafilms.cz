@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon id="plugin.video.dafilms.cz" name="DAFilms.cz" provider-name="asgeirrr" version="1.0.0">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0" />
+    <import addon="script.module.requests" version="2.31.0" />
+    <import addon="script.module.beautifulsoup4" version="4.9.3" />
+    <import addon="inputstream.adaptive" />
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="main.py">
+    <provides>video</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en">DAFilms.cz Video Addon</summary>
+    <summary lang="cs">DAFilms.cz videopřehrávač</summary>
+    <description lang="en">Watch documentaries and films from DAFilms.cz</description>
+    <description lang="cs">Sledujte dokumenty a filmy z DAFilms.cz</description>
+    <platform>all</platform>
+    <assets>
+      <icon>icon.png</icon>
+    </assets>
+  </extension>
+</addon>
