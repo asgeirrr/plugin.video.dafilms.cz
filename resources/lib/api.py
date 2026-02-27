@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import requests
+import xbmc
 from bs4 import BeautifulSoup
 
 
@@ -119,7 +120,7 @@ class DAFilmsAPI:
         except requests.RequestException as e:
             raise DAFilmsAPIError(f"Network error fetching purchased films: {str(e)}") from e
         except Exception as e:
-            raise DAFilmsAPIError(f"Error parsing purchased films: {str(e)}") from e
+            raise DAFilmsAPIError(f"Unexpected error parsing purchased films: {str(e)}") from e
 
     def _parse_films_from_page(self, html_content: str, limit: int = 50) -> list[FilmDetails]:
         """Internal method to parse films from HTML page content"""
@@ -315,15 +316,16 @@ class DAFilmsAPI:
                         f.write(player_response.text)
 
                     # Debug logging
-                    import logging
-
-                    logging.info(f"DAFilms API: Player response status 200 for film {film_id}")
+                    xbmc.log(
+                        f"DAFilms API: Player response status 200 for film {film_id}", xbmc.LOGDEBUG
+                    )
 
                     # Try to parse as JSON
                     try:
                         player_data = player_response.json()
-                        logging.info(
-                            f"DAFilms API: Successfully parsed player data for film {film_id}"
+                        xbmc.log(
+                            f"DAFilms API: Successfully parsed player data for film {film_id}",
+                            xbmc.LOGDEBUG,
                         )
 
                         # Extract HTML snippet containing player configuration
@@ -428,8 +430,6 @@ class DAFilmsAPI:
                 pass
 
             # Debug logging
-            import logging
-
             raise DAFilmsAPIError(f"Could not extract stream URL for film {film_id}")
         except requests.RequestException as e:
             raise DAFilmsAPIError(
@@ -529,3 +529,74 @@ class DAFilmsAPI:
             return response.json()
         except requests.RequestException as e:
             raise DAFilmsAPIError(f"API request failed: {str(e)}") from e
+
+    def update_watch_time(self, film_id: str, position: int) -> bool:
+        """Update watch time for a film (mimics browser behavior)"""
+        xbmc.log(
+            f"DAFilms API: update_watch_time called for film {film_id}, position {position}ms",
+            xbmc.LOGDEBUG,
+        )
+        xbmc.log(f"DAFilms API: Logged in: {self._logged_in}", xbmc.LOGDEBUG)
+
+        if not self._logged_in:
+            xbmc.log("DAFilms API: Not logged in, cannot update watch time", xbmc.LOGWARNING)
+            return False
+
+        try:
+            xbmc.log("DAFilms API: Getting CSRF token for watch time update", xbmc.LOGDEBUG)
+            # Get CSRF token if not already available
+            if not self._csrf_token:
+                self._get_csrf_token()
+
+            if not self._csrf_token:
+                xbmc.log("DAFilms API: No CSRF token available", xbmc.LOGERROR)
+                return False
+
+            xbmc.log(
+                "DAFilms API: CSRF token available, making watch time update request", xbmc.LOGDEBUG
+            )
+
+            # Make the watch time update request
+            update_url = f"{self.BASE_URL}/film/update-watchtime/{film_id}"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+                "Accept": "*/*",
+                "Accept-Language": "cs,sk;q=0.8,en-US;q=0.5,en;q=0.3",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": f"{self.BASE_URL}/film/{film_id}-to-se-mi-snad-zda",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
+            }
+
+            data = {"_token": self._csrf_token, "position": str(position)}
+
+            xbmc.log(f"DAFilms API: Sending POST to {update_url}", xbmc.LOGDEBUG)
+            xbmc.log(f"DAFilms API: Headers: {headers}", xbmc.LOGDEBUG)
+            xbmc.log(f"DAFilms API: Data: {data}", xbmc.LOGDEBUG)
+
+            response = self.session.post(update_url, headers=headers, data=data)
+
+            xbmc.log(
+                f"DAFilms API: Watch time update response status: {response.status_code}",
+                xbmc.LOGDEBUG,
+            )
+            xbmc.log(f"DAFilms API: Response headers: {dict(response.headers)}", xbmc.LOGDEBUG)
+            xbmc.log(f"DAFilms API: Response content: {response.text[:200]}...", xbmc.LOGDEBUG)
+
+            success = response.status_code == 200
+            if success:
+                xbmc.log("DAFilms API: Watch time update successful", xbmc.LOGDEBUG)
+            else:
+                xbmc.log(
+                    f"DAFilms API: Watch time update failed with status {response.status_code}",
+                    xbmc.LOGWARNING,
+                )
+
+            return success
+
+        except requests.RequestException as e:
+            xbmc.log(
+                f"DAFilms API: Request exception during watch time update: {str(e)}", xbmc.LOGERROR
+            )
+            return False
