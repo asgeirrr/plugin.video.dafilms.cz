@@ -15,7 +15,7 @@ import resources.lib.api as api_module
 api_module.DAFilmsAPI.BASE_URL = "https://dafilms.cz/junior"
 
 from resources.lib.utils import get_url
-from resources.lib.films import list_newest_films, list_subscription_films, list_purchased_films
+from resources.lib.films import list_newest_junior_films
 from resources.lib.search import perform_search
 from resources.lib.playback import play_film
 
@@ -26,18 +26,18 @@ if len(sys.argv) > 1:
 def list_menu():
     """Main menu listing for Junior"""
     # Purchased films
-    list_item = xbmcgui.ListItem(label="Zakoupené filmy")
-    url = get_url(action="list_purchased_films", label="Zakoupené filmy")
+    list_item = xbmcgui.ListItem(label="Nejnovější filmy pro 3-6")
+    url = get_url(action="list_preschool", label="Nejnovější filmy pro 3-6")
     xbmcplugin.addDirectoryItem(_handle, url, list_item, True)
 
     # Subscription films
-    list_item = xbmcgui.ListItem(label="Filmy pro předplatitele")
-    url = get_url(action="list_subscription_films", label="Filmy pro předplatitele")
+    list_item = xbmcgui.ListItem(label="Nejnovější filmy pro 7-11")
+    url = get_url(action="list_elementary_school", label="Nejnovější filmy pro 7-11")
     xbmcplugin.addDirectoryItem(_handle, url, list_item, True)
 
     # Featured content
-    list_item = xbmcgui.ListItem(label="Nejnovější filmy")
-    url = get_url(action="list_newest", label="Nejnovější filmy")
+    list_item = xbmcgui.ListItem(label="Nejnovější filmy 12+")
+    url = get_url(action="list_middle_school", label="Nejnovější filmy 12+")
     xbmcplugin.addDirectoryItem(_handle, url, list_item, True)
 
     # Search
@@ -54,12 +54,12 @@ def router(paramstring):
 
     if not params:
         list_menu()
-    elif params["action"] == "list_newest":
-        list_newest_films(params["label"])
-    elif params["action"] == "list_subscription_films":
-        list_subscription_films(params["label"])
-    elif params["action"] == "list_purchased_films":
-        list_purchased_films(params["label"])
+    elif params["action"] == "list_preschool":
+        list_newest_junior_films(params["label"], category="3-6")
+    elif params["action"] == "list_elementary_school":
+        list_newest_junior_films(params["label"], category="7-11")
+    elif params["action"] == "list_middle_school":
+        list_newest_junior_films(params["label"], category="12+")
     elif params["action"] == "search":
         perform_search(params.get("query", ""), params["label"])
     elif params["action"] == "play_film":

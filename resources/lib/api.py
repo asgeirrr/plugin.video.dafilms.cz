@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import json
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import requests
 import xbmc
@@ -9,6 +11,9 @@ import xbmcgui
 from bs4 import BeautifulSoup
 
 from resources.lib.utils import show_notification
+
+if TYPE_CHECKING:
+    from typing import Literal
 
 
 @dataclass
@@ -47,13 +52,44 @@ class DAFilmsAPI:
         self._logged_in = False
         self._csrf_token = None
 
-    def get_newest_films(self, page: int = 1, limit: int = 20) -> list[FilmDetails]:
-        """Get newest films from DAFilms"""
-        return self._get_films_from_listing(page=page, limit=limit, sort="newest")
+    def list_films(
+        self,
+        page: int = 1,
+        limit: int = 20,
+        order_by: Literal["date_added", "title"] = "date_added",
+        order: str = "desc",
+        junior_category: Literal["3-6", "7-11", "12+"] = "",
+    ) -> list[FilmDetails]:
+        """Generic method to list films with support for ordering."""
+        order_by_to_param = {"title": "t", "date_added": "r"}
+        try:
+            params = {
+                "o": order_by_to_param[order_by],
+                "oa": "0" if order == "desc" else "1",
+            }
+            if junior_category:
+                params["junior"] = junior_category
 
-    def get_all_films(self, page: int = 1, limit: int = 50) -> list[FilmDetails]:
-        """Get all films from the comprehensive listing"""
-        return self._get_films_from_listing(page=page, limit=limit, sort="all")
+            url = f"{self.BASE_URL}/film"
+
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+
+            return self._parse_films_from_page(response.text, limit)
+        except requests.RequestException as e:
+            raise DAFilmsAPIError(f"Network error fetching films: {str(e)}") from e
+
+    def search_films(self, query: str, page: int = 1) -> list[FilmDetails]:
+        """Search for films using the film search endpoint"""
+        try:
+            # Use the film search endpoint with query parameter
+            response = self.session.get(f"{self.BASE_URL}/film", params={"q": query})
+            response.raise_for_status()
+
+            # Parse the HTML response to extract film results using shared method
+            return self._parse_films_from_page(response.text)
+        except requests.RequestException as e:
+            raise DAFilmsAPIError(f"Network error searching films: {str(e)}") from e
 
     def get_subscription_films(self, page: int = 1, limit: int = 50) -> list[FilmDetails]:
         """Get films available for subscribers from the SVOD collection"""
@@ -175,42 +211,6 @@ class DAFilmsAPI:
                 break
 
         return films
-
-    def _get_films_from_listing(
-        self, page: int = 1, limit: int = 20, sort: str = "newest", order: str = "asc"
-    ) -> list[FilmDetails]:
-        """Internal method to get films from various listings"""
-        try:
-            # Use the comprehensive film listing endpoint with sorting parameters
-            # o=t orders by title, o=r orders by addition time, oa=1 sets ascending order
-            if sort == "title":
-                url = f"{self.BASE_URL}/film?o=t&oa={'1' if order == 'asc' else '0'}"
-            elif sort == "newest":
-                url = f"{self.BASE_URL}/film?o=r&oa=1"  # o=r orders by addition time (newest first)
-            elif sort == "oldest":
-                url = f"{self.BASE_URL}/film?o=r&oa=0"  # o=r orders by addition time (oldest first)
-            else:
-                url = f"{self.BASE_URL}/film"
-
-            response = self.session.get(url)
-            response.raise_for_status()
-
-            # Reuse the common film parsing logic
-            return self._parse_films_from_page(response.text, limit)
-        except requests.RequestException as e:
-            raise DAFilmsAPIError(f"Network error fetching films: {str(e)}") from e
-
-    def search_films(self, query: str, page: int = 1) -> list[FilmDetails]:
-        """Search for films using the film search endpoint"""
-        try:
-            # Use the film search endpoint with query parameter
-            response = self.session.get(f"{self.BASE_URL}/film", params={"q": query})
-            response.raise_for_status()
-
-            # Parse the HTML response to extract film results using shared method
-            return self._parse_films_from_page(response.text)
-        except requests.RequestException as e:
-            raise DAFilmsAPIError(f"Network error searching films: {str(e)}") from e
 
     def get_film_details(self, film_id: str) -> dict[str, Any]:
         """Get details for a specific film by parsing the film page"""
@@ -497,15 +497,6 @@ class DAFilmsAPI:
 
         self._logged_in = True
         xbmc.log("Successfully logged in", xbmc.LOGDEBUG)
-
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
-        """Make API request with error handling"""
-        try:
-            response = self.session.request(method, endpoint, **kwargs)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            raise DAFilmsAPIError(f"API request failed: {str(e)}") from e
 
     def update_watch_time(self, film_id: str, position: int) -> bool:
         """Update watch time for a film (mimics browser behavior)"""
