@@ -49,6 +49,7 @@ def perform_search(query, label):
                         "mediatype": "movie",
                     }
                     list_item.setInfo("video", video_info)
+                    list_item.setProperty("IsPlayable", "true")
 
                     url = get_url(action="play_film", film_id=film.id, title=film.title)
                     xbmcplugin.addDirectoryItem(_handle, url, list_item, False)

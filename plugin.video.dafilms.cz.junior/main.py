@@ -9,9 +9,10 @@ try:
 except ImportError:
     from urllib.parse import parse_qsl  # type: ignore
 
-# Set the BASE_URL for main addon before importing shared code
+# Set the BASE_URL for Junior before importing shared code
 import resources.lib.api as api_module
-api_module.DAFilmsAPI.BASE_URL = "https://dafilms.cz"
+
+api_module.DAFilmsAPI.BASE_URL = "https://dafilms.cz/junior"
 
 from resources.lib.utils import get_url
 from resources.lib.films import list_newest_films, list_subscription_films, list_purchased_films
@@ -23,7 +24,7 @@ if len(sys.argv) > 1:
 
 
 def list_menu():
-    """Main menu listing"""
+    """Main menu listing for Junior"""
     # Purchased films
     list_item = xbmcgui.ListItem(label="Zakoupené filmy")
     url = get_url(action="list_purchased_films", label="Zakoupené filmy")

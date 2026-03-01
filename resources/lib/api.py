@@ -5,7 +5,10 @@ from typing import Any
 
 import requests
 import xbmc
+import xbmcgui
 from bs4 import BeautifulSoup
+
+from resources.lib.utils import show_notification
 
 
 @dataclass
@@ -27,6 +30,8 @@ class DAFilmsAPIError(Exception):
 class DAFilmsAPI:
     """API client for DAFilms.cz"""
 
+    # Login and stream URLs is the same for regular dafilms.cz and Junior
+    STREAM_URL = LOGIN_URL = "https://dafilms.cz"
     BASE_URL = "https://dafilms.cz"
     # Based on research, the site uses HTML scraping rather than a public API
     # We'll need to parse HTML content
@@ -141,6 +146,8 @@ class DAFilmsAPI:
                 film_url = f"{self.BASE_URL}{film_url}"
 
             film_id = film_url.split("/film/")[-1].split("/")[0]
+            if "?" in film_id:
+                film_id = film_id.split("?")[0]
 
             # Extract title
             title_element = card.find(class_="ui-movie-card__link--title")
@@ -261,12 +268,9 @@ class DAFilmsAPI:
 
     def check_film_access(self, film_id: str) -> bool:
         """Check if user has access to a film (not requiring purchase)"""
-        if not self._ensure_logged_in():
-            return False
-
         try:
             # Test the player endpoint to see if we get 403 (requires purchase) or 200 (has access)
-            player_url = f"{self.BASE_URL}/film/{film_id}/player"
+            player_url = f"{self.STREAM_URL}/film/{film_id}/player"
             headers = {
                 "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
                 "Accept": "*/*",
@@ -294,7 +298,7 @@ class DAFilmsAPI:
         try:
             # DAFilms.cz uses a player endpoint that returns JSON with stream configuration
             # This is the only reliable method we've found that works
-            player_url = f"{self.BASE_URL}/film/{film_id}/player"
+            player_url = f"{self.STREAM_URL}/film/{film_id}/player"
             try:
                 # Use the same headers as the browser
                 headers = {
@@ -302,7 +306,7 @@ class DAFilmsAPI:
                     "Accept": "*/*",
                     "Accept-Language": "cs,sk;q=0.8,en-US;q=0.5,en;q=0.3",
                     "X-Requested-With": "XMLHttpRequest",
-                    "Referer": f"{self.BASE_URL}/film/{film_id}-to-se-mi-snad-zda",
+                    "Referer": f"{self.STREAM_URL}/film/{film_id}-to-se-mi-snad-zda",
                     "Sec-Fetch-Dest": "empty",
                     "Sec-Fetch-Mode": "cors",
                     "Sec-Fetch-Site": "same-origin",
@@ -440,86 +444,59 @@ class DAFilmsAPI:
                 f"Unexpected error extracting stream for film {film_id}: {str(e)}"
             ) from e
 
-    def login(self, username: str, password: str) -> bool:
+    def login(self, username: str, password: str) -> None:
         """Login to DAFilms.cz to access protected content"""
-        try:
-            # First get the main page or a film page to extract CSRF token
-            # The token is likely available on most pages
-            main_page = self.session.get(f"{self.BASE_URL}/")
-            main_page.raise_for_status()
+        # First get the main page or a film page to extract CSRF token
+        # The token is likely available on most pages
+        main_page = self.session.get(self.LOGIN_URL)
+        main_page.raise_for_status()
 
-            soup = BeautifulSoup(main_page.text, "html.parser")
-            csrf_token = soup.find("input", {"name": "_csrf_token"})
+        soup = BeautifulSoup(main_page.text, "html.parser")
+        csrf_token = soup.find("input", {"name": "_csrf_token"})
 
-            # If not found on main page, try a film page
-            if not csrf_token:
-                film_page = self.session.get(f"{self.BASE_URL}/film")
-                film_page.raise_for_status()
-                soup = BeautifulSoup(film_page.text, "html.parser")
-                csrf_token = soup.find("input", {"name": "_csrf_token"})
+        if not csrf_token:
+            msg = f"CSRF token not found on page {self.LOGIN_URL}"
+            xbmc.log(msg, xbmc.LOGERROR)
+            show_notification(msg, icon=xbmcgui.NOTIFICATION_ERROR)
 
-            if not csrf_token:
-                return False
+        self._csrf_token = csrf_token.get("value")
 
-            self._csrf_token = csrf_token.get("value")
+        # Prepare login data - use email instead of _username based on the curl example
+        login_data = {
+            "email": username,
+            "password": password,
+            "_csrf_token": self._csrf_token,
+            "remember_me": "on",
+        }
 
-            # Prepare login data - use email instead of _username based on the curl example
-            login_data = {
-                "email": username,
-                "password": password,
-                "_csrf_token": self._csrf_token,
-                "remember_me": "on",
-            }
+        # Submit login form with proper headers
+        login_response = self.session.post(
+            f"{self.LOGIN_URL}/login_check",
+            data=login_data,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "cs,sk;q=0.8,en-US;q=0.5,en;q=0.3",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Origin": self.BASE_URL,
+                "Referer": f"{self.BASE_URL}/",  # Changed from /login to / since login page doesn't exist
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin",
+            },
+        )
 
-            # Submit login form with proper headers
-            login_response = self.session.post(
-                f"{self.BASE_URL}/login_check",
-                data=login_data,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "cs,sk;q=0.8,en-US;q=0.5,en;q=0.3",
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Origin": self.BASE_URL,
-                    "Referer": f"{self.BASE_URL}/",  # Changed from /login to / since login page doesn't exist
-                    "Upgrade-Insecure-Requests": "1",
-                    "Sec-Fetch-Dest": "document",
-                    "Sec-Fetch-Mode": "navigate",
-                    "Sec-Fetch-Site": "same-origin",
-                },
-            )
+        login_response.raise_for_status()
 
-            # Check if login was successful
-            # Successful login typically redirects to homepage or previous page
-            if login_response.status_code == 200:
-                # Check if we got a redirect or if we're now logged in
-                # Look for logout link or user info in the response
-                response_text = login_response.text
-                if "Odhlásit" in response_text or "logout" in response_text:
-                    self._logged_in = True
-                    return True
-                elif "Přihlásit" in response_text or "login" in response_text:
-                    return False
-                else:
-                    # Check if we can access a protected resource
-                    test_response = self.session.get(f"{self.BASE_URL}/film")
-                    if test_response.status_code == 200:
-                        self._logged_in = True
-                        return True
+        if '<a href="/user/detail/">Profil</a>' not in login_response.text:
+            msg = "Could not confirm login was successful"
+            xbmc.log(msg, xbmc.LOGERROR)
+            show_notification(msg, icon=xbmcgui.NOTIFICATION_ERROR)
+            raise DAFilmsAPIError(msg)
 
-            return False
-
-        except requests.RequestException:
-            return False
-
-    def _ensure_logged_in(self) -> bool:
-        """Ensure we're logged in before accessing protected content"""
-        if not self._logged_in:
-            # Try to login using stored credentials
-            # In a real Kodi addon, credentials would be stored in addon settings
-            # For now, we'll return False to indicate not logged in
-            pass
-        return self._logged_in
+        self._logged_in = True
+        xbmc.log("Successfully logged in", xbmc.LOGDEBUG)
 
     def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """Make API request with error handling"""

@@ -42,28 +42,14 @@ class DAFilmsSession:
 
     def _ensure_logged_in(self) -> bool:
         """Ensure we're logged in, attempt login if needed"""
-        if self._api._logged_in:
-            return True
-
-        # Only use stored credentials, never prompt
-        if not self._addon:
-            return False
-
         username = self._addon.getSetting("username")
         password = self._addon.getSetting("password")
 
-        if username and password:
-            if self._api.login(username, password):
-                self._api._logged_in = True
-                self._logged_in = True
-                return True
-            else:
-                # Clear credentials if login failed
-                self._addon.setSetting("username", "")
-                self._addon.setSetting("password", "")
-                return False
-        else:
-            return False
+        if not username or not password:
+            self.prompt_for_login()
+
+        self._api.login(username, password)
+        self._logged_in = True
 
     def prompt_for_login(self) -> bool:
         """Prompt user to configure credentials in settings"""
@@ -102,7 +88,7 @@ class DAFilmsSession:
 
     def is_logged_in(self) -> bool:
         """Check if user is logged in"""
-        return self._logged_in and self._api._logged_in
+        return self._logged_in
 
 
 def get_session() -> DAFilmsSession:

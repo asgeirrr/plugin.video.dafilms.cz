@@ -19,30 +19,55 @@ from pathlib import Path
 
 
 def build_addon(version="1.0.0"):
-    """Build the Kodi addon ZIP file"""
-    print(f"Building DAFilms.cz Kodi addon version {version}...")
+    """Build both Kodi addon ZIP files"""
+    print(f"Building DAFilms.cz Kodi addons version {version}...")
 
     # Create temporary directory structure
     build_dir = Path("/tmp/dafilms-build")
-    addon_build_dir = build_dir / "plugin.video.dafilms.cz"
 
     # Clean up any existing build
     if build_dir.exists():
         shutil.rmtree(build_dir)
 
-    # Create directories
+    # Build main addon
+    print("\n=== Building Main Addon (DAFilms.cz) ===")
+    build_addon_from_config(
+        build_dir=build_dir,
+        version=version,
+        addon_id="plugin.video.dafilms.cz",
+        addon_xml_path="addon.xml",
+        icon_path="icon.png",
+        main_py_path="main.py",
+    )
+
+    # Build junior addon
+    print("\n=== Building Junior Addon (DAFilms.cz Junior) ===")
+    build_addon_from_config(
+        build_dir=build_dir,
+        version=version,
+        addon_id="plugin.video.dafilms.cz.junior",
+        addon_xml_path="plugin.video.dafilms.cz.junior/addon.xml",
+        icon_path="plugin.video.dafilms.cz.junior/icon.png",
+        main_py_path="plugin.video.dafilms.cz.junior/main.py",
+    )
+
+    print(f"\n✅ Both addons built successfully!")
+
+
+def build_addon_from_config(build_dir, version, addon_id, addon_xml_path, icon_path, main_py_path):
+    """Build a Kodi addon ZIP file with the given configuration"""
+    addon_build_dir = build_dir / addon_id
     addon_build_dir.mkdir(parents=True)
     resources_dir = addon_build_dir / "resources"
     lib_dir = resources_dir / "lib"
     lib_dir.mkdir(parents=True)
 
-    # Copy files
     print("Copying files...")
 
     # Main files
-    shutil.copy("addon.xml", addon_build_dir)
-    shutil.copy("icon.png", addon_build_dir)
-    shutil.copy("main.py", addon_build_dir)
+    shutil.copy(addon_xml_path, addon_build_dir)
+    shutil.copy(icon_path, addon_build_dir)
+    shutil.copy(main_py_path, addon_build_dir)
 
     # Resources
     shutil.copy("resources/settings.xml", resources_dir)
@@ -54,16 +79,13 @@ def build_addon(version="1.0.0"):
 
     # Create ZIP with proper structure
     print("Creating ZIP file...")
-    zip_path = Path(f"../plugin.video.dafilms.cz-{version}.zip")
+    zip_path = Path(f"../{addon_id}-{version}.zip")
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for file in addon_build_dir.rglob("*"):
             if file.is_file():
                 arcname = file.relative_to(build_dir)
                 zipf.write(file, arcname)
-
-    # Clean up
-    shutil.rmtree(build_dir)
 
     print(f"✅ Addon built: {zip_path.absolute()}")
 

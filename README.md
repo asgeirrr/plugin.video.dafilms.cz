@@ -1,108 +1,51 @@
-# DAFilms.cz Kodi Addon
+# DAFilms.cz Kodi Addons
 
-An unofficial Kodi video add-on for watching documentaries and films from [DAFilms.cz](https://dafilms.cz).
+This repository contains two Kodi addons that share a common codebase:
 
-## Features
+## Structure
 
-- ✅ **Comprehensive Film Database**: Access 200+ documentaries and films
-- ✅ **Newest Films**: Browse recently added content
-- ✅ **Search**: Find specific films with autocomplete
-- ✅ **Rich Metadata**: Film details, thumbnails, and descriptions
-- ✅ **Modern Playback**: HLS and MP4 stream support with inputstream.adaptive
+- **shared/** - Contains all shared code (API, playback, search, etc.)
+- **addon-junior/** - DAFilms.cz Junior addon (for children's content)
+- **Root level files** - Main DAFilms.cz addon
 
-## Installation
+## Addons
 
-### From ZIP File
+### Main Addon (DAFilms.cz)
+- **ID**: `plugin.video.dafilms.cz`
+- **Base URL**: `https://dafilms.cz`
+- **Icon**: `icon.png`
+- **Files**: Root level `addon.xml`, `main.py`, and `icon.png`
 
-1. Download the latest release ZIP file
-2. In Kodi: **Settings** → **Add-ons** → **Install from zip file**
-3. Select the downloaded ZIP file
-4. Wait for "Add-on installed" notification
+### Junior Addon (DAFilms.cz Junior)
+- **ID**: `plugin.video.dafilms.cz.junior`
+- **Base URL**: `https://dafilms.cz/junior`
+- **Icon**: `icon_junior.png`
+- **Files**: `addon-junior/addon.xml`, `addon-junior/main.py`, and `icon_junior.png`
 
-### Development Setup
+## Testing Locally
+
+To test both addons in your local Kodi installation:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/plugin.video.dafilms.cz.git
-cd plugin.video.dafilms.cz
+# Main addon (already set up)
+ln -sf /home/oskar/Projekty/plugin.video.dafilms.cz ~/.kodi/addons/plugin.video.dafilms.cz
 
-# Install development dependencies
-pip install ruff
-
-# Run code quality checks
-ruff check resources/lib/
-ruff format resources/lib/
+# Junior addon
+ln -sf /home/oskar/Projekty/plugin.video.dafilms.cz/addon-junior ~/.kodi/addons/plugin.video.dafilms.cz.junior
 ```
 
-## Code Quality
+## Development
 
-This project uses [Ruff](https://github.com/astral-sh/ruff) for linting and formatting:
+All shared code is in the `shared/` directory. Changes to shared code will affect both addons.
 
-- **Linting**: `ruff check resources/lib/`
-- **Formatting**: `ruff format resources/lib/`
-- **Auto-fix**: `ruff check --fix resources/lib/`
+Each addon's `main.py` sets the `BASE_URL` before importing shared code:
+- Main addon: `https://dafilms.cz`
+- Junior addon: `https://dafilms.cz/junior`
 
-Configuration is in `pyproject.toml` and `.ruff.toml`.
+## Running Tests
 
-## Project Structure
-
-```
-plugin.video.dafilms.cz/
-├── addon.xml              # Addon metadata
-├── icon.png               # Addon icon
-├── main.py                # Main entry point
-├── resources/
-│   └── lib/
-│       ├── api.py         # DAFilms.cz API client
-│       ├── films.py       # Film listing functionality
-│       ├── playback.py    # Video playback
-│       ├── search.py      # Search functionality
-│       └── utils.py       # Utility functions
-├── .ruff.toml             # Ruff configuration
-├── pyproject.toml         # Python project configuration
-└── README.md              # This file
+```bash
+pytest tests/
 ```
 
-## Dependencies
-
-- **Kodi Python**: 3.0.0+
-- **script.module.requests**: 2.31.0+
-- **script.module.beautifulsoup4**: 4.9.3+
-- **inputstream.adaptive**: Any version (for HLS playback)
-
-## Development Notes
-
-### HTML Scraping Approach
-
-Since DAFilms.cz doesn't provide a public API, this addon uses HTML scraping with BeautifulSoup to:
-- Extract film listings from `/film?o=r&oa=1`
-- Parse film details from JSON-LD metadata
-- Find video streams from Video.js player configuration
-
-### Stream URL Detection
-
-The addon attempts multiple methods to find stream URLs:
-1. Direct `<source>` tags in Video.js player
-2. JavaScript configuration parsing
-3. Common URL patterns
-4. Debug output for manual inspection
-
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Run `ruff check --fix` before committing
-4. Submit a pull request
-
-## License
-
-This project is licensed under the AGPL 3.0
-
-## Support
-
-For issues or questions, please open a GitHub issue.
-
----
-
-**Note**: This is an unofficial addon and is not affiliated with DAFilms.cz.
+Tests cover the shared codebase functionality.

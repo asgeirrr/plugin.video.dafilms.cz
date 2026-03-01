@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon id="plugin.video.dafilms.cz.junior" name="DAFilms.cz Junior" provider-name="asgeirrr" version="1.0.0">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0" />
+    <import addon="script.module.requests" version="2.31.0" />
+    <import addon="script.module.beautifulsoup4" version="4.9.3" />
+    <import addon="inputstream.adaptive" />
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="main.py">
+    <provides>video</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en">DAFilms.cz Junior Video Addon</summary>
+    <summary lang="cs">DAFilms.cz Junior videopřehrávač</summary>
+    <description lang="en">Watch children's documentaries and films from DAFilms.cz Junior</description>
+    <description lang="cs">Sledujte dětské dokumenty a filmy z DAFilms.cz Junior</description>
+    <platform>all</platform>
+    <assets>
+      <icon>icon.png</icon>
+    </assets>
+  </extension>
+</addon>

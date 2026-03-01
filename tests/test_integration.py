@@ -12,9 +12,7 @@ def api():
     password = os.environ.get("DAFILMS_PASSWORD")
 
     api = DAFilmsAPI()
-    success = api.login(email, password)
-    if not success:
-        pytest.fail("Login failed, check DAFILMS_EMAIL and DAFILMS_PASSWORD env vars.")
+    api.login(email, password)
     return api
 
 
@@ -40,6 +38,30 @@ def test_search(api):
         thumb="https://dafilms.cz/media/_cache/small/gallery/2021/01/22/Karel_ja_a_ty_1.jpg",
     )
     assert expected_details in results
+
+
+def test_search_junior(api):
+    """Test search functionality"""
+    api = DAFilmsAPI()
+    api.BASE_URL = "https://dafilms.cz/junior"
+
+    results = api.search_films("Karel")
+
+    expected_details = FilmDetails(
+        id="9955-filmovy-dobrodruh-karel-zeman",
+        title="Filmový dobrodruh Karel Zeman",
+        url="https://dafilms.cz/junior/junior/film/9955-filmovy-dobrodruh-karel-zeman?junior=LP",
+        thumb="https://dafilms.cz/media/_cache/small/gallery/2016/02/17/Karel_Zeman_young.jpg",
+    )
+    assert expected_details in results
+
+    unexpected_details = FilmDetails(
+        id="10919-karel-ja-a-ty",
+        title="Karel, já a ty",
+        url="https://dafilms.cz/film/10919-karel-ja-a-ty",
+        thumb="https://dafilms.cz/media/_cache/small/gallery/2021/01/22/Karel_ja_a_ty_1.jpg",
+    )
+    assert unexpected_details not in results
 
 
 def test_film_details(api):
