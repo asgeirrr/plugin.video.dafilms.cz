@@ -1,4 +1,5 @@
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import xbmc
 import xbmcgui
@@ -8,6 +9,9 @@ try:
     from urlparse import parse_qsl, urlencode  # type: ignore
 except ImportError:
     from urllib.parse import parse_qsl, urlencode  # type: ignore
+
+# Simple in-memory cache for film details
+_film_details_cache = {}
 
 
 def get_url(**kwargs):
@@ -41,3 +45,37 @@ def get_addon_setting(setting_id):
 
     addon = xbmcaddon.Addon()
     return addon.getSetting(setting_id)
+
+
+def get_film_details_cache():
+    """Get the shared film details cache"""
+    return _film_details_cache
+
+
+def fetch_film_details_parallel(api, film_ids: list[str]) -> dict[str, dict]:
+    """Fetch film details in parallel using thread pool
+
+    Args:
+        api: DAFilmsAPI instance to fetch details from
+        film_ids: List of film IDs to fetch details for
+
+    Returns:
+        Dictionary mapping film IDs to their details
+    """
+    details = {}
+
+    def fetch_details(film_id):
+        try:
+            return film_id, api.get_film_details(film_id)
+        except Exception:
+            return film_id, None
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_id = {executor.submit(fetch_details, film_id): film_id for film_id in film_ids}
+
+        for future in as_completed(future_to_id, timeout=10):
+            film_id, result = future.result()
+            if result:
+                details[film_id] = result
+
+    return details

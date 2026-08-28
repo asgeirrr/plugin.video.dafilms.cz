@@ -4,9 +4,9 @@ import xbmc
 import xbmcgui
 import xbmcplugin
 
-from resources.lib.api import DAFilmsAPI
+from resources.lib.api import DAFilmsAPI, FilmDetails
 from resources.lib.session import get_session
-from resources.lib.utils import get_url
+from resources.lib.utils import fetch_film_details_parallel, get_film_details_cache, get_url
 
 if len(sys.argv) > 1:
     _handle = int(sys.argv[1])
@@ -14,6 +14,8 @@ if len(sys.argv) > 1:
 
 def perform_search(query, label):
     """Perform film search"""
+    session = get_session()
+
     # If no query provided, show search dialog
     if not query:
         keyboard = xbmc.Keyboard("", "Hledat filmy na DAFilms.cz")
@@ -33,22 +35,37 @@ def perform_search(query, label):
         xbmcplugin.setPluginCategory(_handle, f"Výsledky hledání: {query}")
 
         try:
-            api = DAFilmsAPI()
+            api = session.get_api()
             results = api.search_films(query)
 
             if results:
-                for film in results[:20]:  # Limit to 20 results for performance
-                    list_item = xbmcgui.ListItem(label=film.title)
-                    list_item.setArt({"thumb": film.thumb})
+                cache = get_film_details_cache()
+                # Fetch details in parallel for all films (with timeout)
+                film_ids = [f.id for f in results[:20] if f.id not in cache]  # Limit to 20 results
 
-                    # Set rich metadata (film object only has basic fields)
-                    video_info = {
-                        "title": film.title,
-                        "plot": "DAFilms.cz dokumentární film",
-                        "genre": "Documentary",
-                        "mediatype": "movie",
-                    }
-                    list_item.setInfo("video", video_info)
+                if film_ids:
+                    new_details = fetch_film_details_parallel(api, film_ids)
+                    cache.update(new_details)
+
+                for film in results[:20]:
+                    list_item = xbmcgui.ListItem(label=film.title)
+
+                    # Use cached details if available
+                    film_details = cache.get(film.id, {})
+
+                    if not film_details:
+                        film_details = {
+                            "title": film.title,
+                            "plot": "",
+                            "genre": "Documentary",
+                            "mediatype": "movie",
+                        }
+
+                    # Use thumb from cached details if available, otherwise fall back to film.thumb
+                    thumb = film_details.get("thumb") or film.thumb
+                    list_item.setArt({"thumb": thumb})
+
+                    list_item.setInfo("video", film_details)
                     list_item.setProperty("IsPlayable", "true")
 
                     url = get_url(action="play_film", film_id=film.id, title=film.title)

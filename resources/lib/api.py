@@ -55,7 +55,7 @@ class DAFilmsAPI:
     def list_films(
         self,
         page: int = 1,
-        limit: int = 20,
+        limit: int | None = None,
         order_by: Literal["date_added", "title"] = "date_added",
         order: str = "desc",
         junior_category: Literal["3-6", "7-11", "12+"] = "",
@@ -91,7 +91,7 @@ class DAFilmsAPI:
         except requests.RequestException as e:
             raise DAFilmsAPIError(f"Network error searching films: {str(e)}") from e
 
-    def get_subscription_films(self, page: int = 1, limit: int = 50) -> list[FilmDetails]:
+    def get_subscription_films(self, page: int = 1, limit: int | None = None) -> list[FilmDetails]:
         """Get films available for subscribers from the SVOD collection"""
         try:
             # Use the SVOD collection URL
@@ -163,7 +163,9 @@ class DAFilmsAPI:
         except Exception as e:
             raise DAFilmsAPIError(f"Unexpected error parsing purchased films: {str(e)}") from e
 
-    def _parse_films_from_page(self, html_content: str, limit: int = 50) -> list[FilmDetails]:
+    def _parse_films_from_page(
+        self, html_content: str, limit: int | None = None
+    ) -> list[FilmDetails]:
         """Internal method to parse films from HTML page content"""
         soup = BeautifulSoup(html_content, "html.parser")
         films = []
@@ -207,7 +209,7 @@ class DAFilmsAPI:
 
             films.append(FilmDetails(film_id, title, film_url, thumb))
 
-            if len(films) >= limit:
+            if limit is not None and len(films) >= limit:
                 break
 
         return films
