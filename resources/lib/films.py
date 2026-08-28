@@ -73,11 +73,16 @@ def list_newest_junior_films(label, category: Literal["3-6", "7-11", "12+"]) -> 
 
 def _populate_directory(api: DAFilmsAPI, films: list[FilmDetails]) -> None:
     cache = get_film_details_cache()
-    # Fetch details in parallel for all films (with timeout)
-    film_ids = [f.id for f in films if f.id not in cache]
+    # Only fetch details for films missing plot/director (extracted from listing page)
+    film_ids_needing_fetch = []
+    for film in films:
+        if film.id in cache:
+            continue
+        if not film.plot or not film.thumb:
+            film_ids_needing_fetch.append(film.id)
 
-    if film_ids:
-        new_details = fetch_film_details_parallel(api, film_ids)
+    if film_ids_needing_fetch:
+        new_details = fetch_film_details_parallel(api, film_ids_needing_fetch)
         cache.update(new_details)
 
     for film in films:
@@ -86,19 +91,21 @@ def _populate_directory(api: DAFilmsAPI, films: list[FilmDetails]) -> None:
         # Use cached details if available
         film_details = cache.get(film.id, {})
 
-        if not film_details:
-            film_details = {
-                "title": film.title,
-                "plot": "",
-                "genre": "Documentary",
-                "mediatype": "movie",
-            }
+        # Build info from FilmDetails (has plot, director from listing) + cache
+        info = {
+            "title": film.title,
+            "plot": film.plot or film_details.get("plot", ""),
+            "director": film.director or film_details.get("director"),
+            "genre": "Documentary",
+            "mediatype": "movie",
+        }
+        info = {k: v for k, v in info.items() if v is not None}
 
-        # Use thumb from cached details if available, otherwise fall back to film.thumb
-        thumb = film_details.get("thumb") or film.thumb
+        # Use thumb from FilmDetails first, then cached, then None
+        thumb = film.thumb or film_details.get("thumb")
         list_item.setArt({"thumb": thumb})
 
-        list_item.setInfo("video", film_details)
+        list_item.setInfo("video", info)
         list_item.setProperty("IsPlayable", "true")
 
         url = get_url(action="play_film", film_id=film.id, title=film.title)

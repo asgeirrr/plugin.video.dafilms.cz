@@ -24,6 +24,8 @@ class FilmDetails:
     title: str
     url: str
     thumb: str | None = None
+    plot: str | None = None
+    director: str | None = None
 
 
 class DAFilmsAPIError(Exception):
@@ -45,10 +47,17 @@ class DAFilmsAPI:
         self.session = requests.Session()
         self.session.headers.update(
             {
-                "User-Agent": "Kodi/DAFilms Addon",
-                "Accept": "application/json",
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+                "Accept": "*/*",
+                "Accept-Language": "cs,sk;q=0.8,en-US;q=0.5,en;q=0.3",
             }
         )
+        # Configure session with connection pooling and retries
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=20, pool_maxsize=100, max_retries=3
+        )
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
         self._logged_in = False
         self._csrf_token = None
 
@@ -72,7 +81,7 @@ class DAFilmsAPI:
 
             url = f"{self.BASE_URL}/film"
 
-            response = self.session.get(url, params=params)
+            response = self.session.get(url, params=params, timeout=15)
             response.raise_for_status()
 
             return self._parse_films_from_page(response.text, limit)
@@ -83,7 +92,7 @@ class DAFilmsAPI:
         """Search for films using the film search endpoint"""
         try:
             # Use the film search endpoint with query parameter
-            response = self.session.get(f"{self.BASE_URL}/film", params={"q": query})
+            response = self.session.get(f"{self.BASE_URL}/film", params={"q": query}, timeout=15)
             response.raise_for_status()
 
             # Parse the HTML response to extract film results using shared method
@@ -96,7 +105,7 @@ class DAFilmsAPI:
         try:
             # Use the SVOD collection URL
             url = f"{self.BASE_URL}/collection/35-svod-covered"
-            response = self.session.get(url)
+            response = self.session.get(url, timeout=15)
             response.raise_for_status()
 
             # Reuse the existing film parsing logic
@@ -166,7 +175,9 @@ class DAFilmsAPI:
     def _parse_films_from_page(
         self, html_content: str, limit: int | None = None
     ) -> list[FilmDetails]:
-        """Internal method to parse films from HTML page content"""
+        """Internal method to parse films from HTML page content.
+        Extracts plot and director from listing page to avoid extra HTTP requests.
+        """
         soup = BeautifulSoup(html_content, "html.parser")
         films = []
 
@@ -198,7 +209,7 @@ class DAFilmsAPI:
             thumb = None
             if link_element.has_attr("style"):
                 style = link_element["style"]
-                match = re.search(r"url\(['\"]([^'\"]+)['\"]\)", style)
+                match = re.search(r'url\("([^"]+)"\)', style)
                 if match:
                     thumb = match.group(1)
 
@@ -207,7 +218,19 @@ class DAFilmsAPI:
                 if img_element and img_element.has_attr("src"):
                     thumb = img_element["src"]
 
-            films.append(FilmDetails(film_id, title, film_url, thumb))
+            # Extract plot/description from teaser
+            plot = None
+            teaser = card.find(class_="teaser")
+            if teaser:
+                plot = teaser.get_text(strip=True)
+
+            # Extract director
+            director = None
+            directors_element = card.find(class_="ui-movie-card__directors")
+            if directors_element:
+                director = directors_element.get_text(strip=True)
+
+            films.append(FilmDetails(film_id, title, film_url, thumb, plot, director))
 
             if limit is not None and len(films) >= limit:
                 break

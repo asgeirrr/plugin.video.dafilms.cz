@@ -70,7 +70,7 @@ def fetch_film_details_parallel(api, film_ids: list[str]) -> dict[str, dict]:
         except Exception:
             return film_id, None
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         future_to_id = {executor.submit(fetch_details, film_id): film_id for film_id in film_ids}
 
         for future in as_completed(future_to_id, timeout=10):

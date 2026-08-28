@@ -31,13 +31,15 @@ def test_search(api):
     """Test search functionality"""
     api = DAFilmsAPI()
     results = api.search_films("Karel")
-    expected_details = FilmDetails(
-        id="10919-karel-ja-a-ty",
-        title="Karel, já a ty",
-        url="https://dafilms.cz/film/10919-karel-ja-a-ty",
-        thumb="https://dafilms.cz/media/_cache/small/gallery/2021/01/22/Karel_ja_a_ty_1.jpg",
-    )
-    assert expected_details in results
+    # Verify the expected film is in results with data from listing page
+    film_ids = [r.id for r in results]
+    assert "10919-karel-ja-a-ty" in film_ids
+    film = next(r for r in results if r.id == "10919-karel-ja-a-ty")
+    assert film.title == "Karel, já a ty"
+    assert film.thumb == "https://dafilms.cz/media/_cache/small/gallery/2021/01/22/Karel_ja_a_ty_1.jpg"
+    # With optimization, plot and director should be extracted from listing
+    assert film.plot is not None
+    assert film.director is not None
 
 
 def test_search_junior(api):
@@ -47,21 +49,17 @@ def test_search_junior(api):
 
     results = api.search_films("Karel")
 
-    expected_details = FilmDetails(
-        id="9955-filmovy-dobrodruh-karel-zeman",
-        title="Filmový dobrodruh Karel Zeman",
-        url="https://dafilms.cz/junior/junior/film/9955-filmovy-dobrodruh-karel-zeman?junior=LP",
-        thumb="https://dafilms.cz/media/_cache/small/gallery/2016/02/17/Karel_Zeman_young.jpg",
-    )
-    assert expected_details in results
+    # Verify expected film is in results with data from listing page
+    film_ids = [r.id for r in results]
+    assert "9955-filmovy-dobrodruh-karel-zeman" in film_ids
+    film = next(r for r in results if r.id == "9955-filmovy-dobrodruh-karel-zeman")
+    assert film.title == "Filmový dobrodruh Karel Zeman"
+    assert film.thumb == "https://dafilms.cz/media/_cache/small/gallery/2016/02/17/Karel_Zeman_young.jpg"
+    # Director should be extracted from listing (plot may or may not be present)
+    assert film.director is not None
 
-    unexpected_details = FilmDetails(
-        id="10919-karel-ja-a-ty",
-        title="Karel, já a ty",
-        url="https://dafilms.cz/film/10919-karel-ja-a-ty",
-        thumb="https://dafilms.cz/media/_cache/small/gallery/2021/01/22/Karel_ja_a_ty_1.jpg",
-    )
-    assert unexpected_details not in results
+    # Verify main site films are not in junior results
+    assert "10919-karel-ja-a-ty" not in film_ids
 
 
 def test_film_details(api):

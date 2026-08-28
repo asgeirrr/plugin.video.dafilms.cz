@@ -15,7 +15,7 @@ api_module.DAFilmsAPI.BASE_URL = "https://dafilms.cz"
 
 from resources.lib.utils import get_url
 from resources.lib.films import list_newest_films, list_subscription_films, list_purchased_films
-from resources.lib.search import perform_search
+from resources.lib.search import perform_search, show_search_history
 from resources.lib.playback import play_film
 
 if len(sys.argv) > 1:
@@ -41,7 +41,7 @@ def list_menu():
 
     # Search
     list_item = xbmcgui.ListItem(label="Hledat")
-    url = get_url(action="search", label="Hledat")
+    url = get_url(action="search_history", label="Hledání")
     xbmcplugin.addDirectoryItem(_handle, url, list_item, True)
 
     xbmcplugin.endOfDirectory(_handle, cacheToDisc=True)
@@ -59,6 +59,8 @@ def router(paramstring):
         list_subscription_films(params["label"])
     elif params["action"] == "list_purchased_films":
         list_purchased_films(params["label"])
+    elif params["action"] == "search_history":
+        show_search_history(params["label"])
     elif params["action"] == "search":
         perform_search(params.get("query", ""), params["label"])
     elif params["action"] == "play_film":
