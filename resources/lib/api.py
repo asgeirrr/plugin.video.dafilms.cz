@@ -18,8 +18,6 @@ if TYPE_CHECKING:
 
 @dataclass
 class FilmDetails:
-    """Dataclass to represent film details"""
-
     id: str
     title: str
     url: str
@@ -28,15 +26,20 @@ class FilmDetails:
     director: str | None = None
 
 
-class DAFilmsAPIError(Exception):
-    """Base exception for all DAFilms API errors"""
+@dataclass
+class Category:
+    id: str
+    title: str
+    url: str
+    thumb: str | None = None
+    plot: str | None = None
 
+
+class DAFilmsAPIError(Exception):
     pass
 
 
 class DAFilmsAPI:
-    """API client for DAFilms.cz"""
-
     # Login and stream URLs is the same for regular dafilms.cz and Junior
     STREAM_URL = LOGIN_URL = "https://dafilms.cz"
     BASE_URL = "https://dafilms.cz"
@@ -593,3 +596,105 @@ class DAFilmsAPI:
                 f"DAFilms API: Request exception during watch time update: {str(e)}", xbmc.LOGERROR
             )
             return False
+
+    def get_categories(self) -> list[Category]:
+        """Get list of categories from the first page of the program section"""
+        try:
+            response = self.session.get(f"{self.BASE_URL}/program", timeout=15)
+            response.raise_for_status()
+
+            return self._parse_categories_from_page(response.text)
+        except requests.RequestException as e:
+            raise DAFilmsAPIError(f"Network error fetching categories: {str(e)}") from e
+
+    def _parse_categories_from_page(self, html_content: str) -> list[Category]:
+        """Parse categories from the program page HTML"""
+        soup = BeautifulSoup(html_content, "html.parser")
+        categories = []
+
+        # First, check for featured category in the banner
+        # The banner has an img tag with data-lazy attribute in the parent div
+        banner_caption = soup.find("div", class_="banner-caption")
+        if banner_caption:
+            h2 = banner_caption.find("h2")
+            detail_link = banner_caption.find("a", string="Detail")
+            if h2 and detail_link and detail_link.has_attr("href"):
+                title = h2.get_text(strip=True)
+                href = detail_link["href"]
+                category_id = href.split("/")[-1].split("-")[0]
+                full_url = f"{self.BASE_URL}{href}" if not href.startswith("http") else href
+
+                # Extract description from teaser div
+                plot = None
+                teaser = banner_caption.find("div", class_="teaser")
+                if teaser:
+                    plot = teaser.get_text(strip=True)
+
+                # Extract thumbnail from img with data-lazy (in parent div)
+                thumb = None
+                img = banner_caption.find("img")
+                if not img and banner_caption.parent:
+                    img = banner_caption.parent.find("img")
+                if img:
+                    # Try data-lazy first, then src
+                    if img.has_attr("data-lazy"):
+                        thumb = img["data-lazy"]
+                    elif img.has_attr("src") and img["src"] != "/img/empty.png":
+                        thumb = img["src"]
+
+                # Make thumbnail URL absolute
+                if thumb and not thumb.startswith("http"):
+                    thumb = f"{self.BASE_URL}{thumb}"
+
+                categories.append(
+                    Category(id=category_id, title=title, url=full_url, thumb=thumb, plot=plot)
+                )
+
+        # Categories are in h3 elements with links to /program/<id>-<slug>
+        h3_elements = soup.find_all("h3")
+        for h3 in h3_elements:
+            link = h3.find("a", href=True)
+            if link and link["href"].startswith("/program/"):
+                href = link["href"]
+                title = link.get_text(strip=True)
+                # Extract category ID from URL (e.g., /program/1705-okupace-68 -> 1705)
+                category_id = href.split("/")[-1].split("-")[0]
+                # Build full URL
+                full_url = f"{self.BASE_URL}{href}" if not href.startswith("http") else href
+
+                # Extract description - it's in the next sibling <a> tag
+                plot = None
+                next_a = h3.find_next_sibling("a")
+                if next_a:
+                    plot = next_a.get_text(strip=True)
+
+                # Extract thumbnail - look for image in preceding anchor tag
+                thumb = None
+                prev_a = h3.find_previous_sibling("a", href=True)
+                if prev_a:
+                    img = prev_a.find("img")
+                    if img and img.has_attr("src"):
+                        thumb = img["src"]
+
+                # Make thumbnail URL absolute
+                if thumb and not thumb.startswith("http"):
+                    thumb = f"{self.BASE_URL}{thumb}"
+
+                categories.append(
+                    Category(id=category_id, title=title, url=full_url, thumb=thumb, plot=plot)
+                )
+
+        return categories
+
+    def get_category_films(self, category_id: str) -> list[FilmDetails]:
+        """Get films from a specific category/program page"""
+        try:
+            # The category page URL
+            category_url = f"{self.BASE_URL}/program/{category_id}"
+            response = self.session.get(category_url, timeout=15)
+            response.raise_for_status()
+
+            # Parse films from the category page using existing method
+            return self._parse_films_from_page(response.text)
+        except requests.RequestException as e:
+            raise DAFilmsAPIError(f"Network error fetching category films: {str(e)}") from e

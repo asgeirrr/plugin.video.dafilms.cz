@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import xbmcgui
 import xbmcplugin
 
-from resources.lib.api import DAFilmsAPI, FilmDetails
+from resources.lib.api import Category, DAFilmsAPI, FilmDetails
 from resources.lib.session import get_session
 from resources.lib.utils import (
     add_directory_item,
@@ -68,6 +68,41 @@ def list_newest_junior_films(label, category: Literal["3-6", "7-11", "12+"]) -> 
     films = api.list_films(
         order_by="date_added", order="desc", junior_category=category, limit=None
     )
+    _populate_directory(api, films)
+
+
+def list_categories(label):
+    """List program categories from the first page"""
+    xbmcplugin.setPluginCategory(_handle, label)
+
+    # Get session and API instance
+    session = get_session()
+    api = session.get_api()
+
+    # Get categories from the first page only (featured/current categories)
+    categories = api.get_categories()
+
+    for category in categories:
+        list_item = xbmcgui.ListItem(label=category.title)
+        if category.thumb:
+            list_item.setArt({"thumb": category.thumb})
+        if category.plot:
+            list_item.setInfo("video", {"plot": category.plot})
+        url = get_url(action="list_category_films", category_id=category.id, label=category.title)
+        xbmcplugin.addDirectoryItem(_handle, url, list_item, True)
+
+    xbmcplugin.endOfDirectory(_handle, cacheToDisc=True)
+
+
+def list_category_films(label, category_id: str):
+    """List films from a specific category"""
+    xbmcplugin.setPluginCategory(_handle, label)
+
+    # Get session and API instance
+    session = get_session()
+    api = session.get_api()
+
+    films = api.get_category_films(category_id)
     _populate_directory(api, films)
 
 
