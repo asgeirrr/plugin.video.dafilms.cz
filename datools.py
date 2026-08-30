@@ -223,10 +223,12 @@ def show_logs():
     result = subprocess.run(["tail", "-50", str(log_file)], capture_output=True, text=True)
     print(result.stdout)
 
-    # Filter for our addon
-    print("\nFiltering for DAFilms:")
+    # Filter for our addon with context to capture full tracebacks
+    print("\nFiltering for DAFilms (with error context):")
     result = subprocess.run(
-        ["grep", "DAFilms\\|dafilms", str(log_file)], capture_output=True, text=True
+        ["grep", "-E", "-A", "3", "-B", "1", "dafilms|DAFilms|Error|Traceback|Exception|AttributeError", str(log_file)],
+        capture_output=True,
+        text=True
     )
     if result.stdout:
         print(result.stdout)
