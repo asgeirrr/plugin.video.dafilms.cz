@@ -33,3 +33,14 @@ known-first-party = ["resources"]
 
 [tool.ruff.lint.per-file-ignores]
 "resources/lib/main.py" = ["E402"]  # Module level import not at top of file
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+version_files = [
+    "pyproject.toml",
+]
+tag_format = "v$version"
+major_version_zero = true
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"

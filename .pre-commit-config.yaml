@@ -4,17 +4,23 @@ repos:
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --config=pyproject.toml]
-        files: ^resources/lib/.*\.py$
+        files: ^(resources/lib/|datools\.py|conftest\.py|tests/).*\.py$
       - id: ruff-format
         args: [--config=pyproject.toml]
-        files: ^resources/lib/.*\.py$
+        files: ^(resources/lib/|datools\.py|conftest\.py|tests/).*\.py$
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
-        files: ^resources/lib/.*\.py$
+        files: ^(resources/lib/|datools\.py|conftest\.py|tests/).*\.py$
       - id: end-of-file-fixer
-        files: ^resources/lib/.*\.py$
+        files: ^(resources/lib/|datools\.py|conftest\.py|tests/).*\.py$
       - id: check-yaml
       - id: check-toml
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.19.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]

@@ -574,7 +574,10 @@ class DAFilmsAPI:
         login_response.raise_for_status()
 
         if '<a href="/user/detail/">Profil</a>' not in login_response.text:
-            msg = "Could not confirm login was successful"
+            msg = (
+                "Could not confirm login was successful "
+                f"(status={login_response.status_code}, final_url={login_response.url})"
+            )
             xbmc.log(msg, xbmc.LOGERROR)
             show_notification(msg, icon=xbmcgui.NOTIFICATION_ERROR)
             raise DAFilmsAPIError(msg)

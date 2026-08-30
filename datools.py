@@ -12,14 +12,28 @@ import zipfile
 import requests
 import re
 import traceback
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
 # ruff: noqa: T201
 
 
-def build_addon(version="1.0.0"):
+def get_version_from_pyproject():
+    """Get version from pyproject.toml commitizen config"""
+    try:
+        import tomllib
+        with open("pyproject.toml", "rb") as f:
+            config = tomllib.load(f)
+            return config["tool"]["commitizen"]["version"]
+    except (ImportError, FileNotFoundError, KeyError, tomllib.TomlDecodeError):
+        return "0.1.0"
+
+
+def build_addon(version=None):
     """Build both Kodi addon ZIP files"""
+    if version is None:
+        version = get_version_from_pyproject()
     print(f"Building DAFilms.cz Kodi addons version {version}...")
 
     # Create temporary directory structure
@@ -64,8 +78,11 @@ def build_addon_from_config(build_dir, version, addon_id, addon_xml_path, icon_p
 
     print("Copying files...")
 
-    # Main files
-    shutil.copy(addon_xml_path, addon_build_dir)
+    # Main files - copy and update version in addon.xml
+    addon_xml = ET.parse(addon_xml_path)
+    addon_xml.getroot().attrib['version'] = version
+    addon_xml.write(addon_build_dir / Path(addon_xml_path).name)
+    
     shutil.copy(icon_path, addon_build_dir)
     shutil.copy(main_py_path, addon_build_dir)
 
@@ -79,7 +96,7 @@ def build_addon_from_config(build_dir, version, addon_id, addon_xml_path, icon_p
 
     # Create ZIP with proper structure
     print("Creating ZIP file...")
-    zip_path = Path(f"../{addon_id}-{version}.zip")
+    zip_path = Path(f"{addon_id}-{version}.zip")
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for file in addon_build_dir.rglob("*"):
@@ -95,7 +112,11 @@ def clean_build():
     print("Cleaning build artifacts...")
 
     # Remove ZIP files
-    for zip_file in Path("..").glob("plugin.video.dafilms.cz-*.zip"):
+    for zip_file in Path(".").glob("plugin.video.dafilms.cz-*.zip"):
+        zip_file.unlink()
+        print(f"Removed: {zip_file}")
+    
+    for zip_file in Path(".").glob("plugin.video.dafilms.cz.junior-*.zip"):
         zip_file.unlink()
         print(f"Removed: {zip_file}")
 
@@ -149,6 +170,9 @@ def run_tests():
     for line in process.stderr:
         sys.stderr.write(line)
         sys.stderr.flush()
+    
+    # Wait for process to complete and return its exit code
+    sys.exit(process.wait())
 
 
 def main():
@@ -176,7 +200,7 @@ def main():
     elif command == "logs":
         show_logs()
     elif command == "build":
-        version = sys.argv[2] if len(sys.argv) > 2 else "1.0.0"
+        version = sys.argv[2] if len(sys.argv) > 2 else None
         build_addon(version)
     elif command == "clean":
         clean_build()

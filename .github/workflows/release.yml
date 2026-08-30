@@ -1,0 +1,173 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install commitizen
+        run: |
+          pip install commitizen
+
+      - name: Validate commit messages
+        run: |
+          # Validate only the commits introduced by this push. github.event.before
+          # is all-zeros on a new branch / first push, so fall back to the tip commit.
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git rev-parse --verify "$BEFORE^{commit}" >/dev/null 2>&1; then
+            cz check --rev-range "${AFTER}~1..${AFTER}"
+          else
+            cz check --rev-range "${BEFORE}..${AFTER}"
+          fi
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-xdist requests beautifulsoup4
+
+      - name: Debug secret integrity (temporary)
+        env:
+          DAFILMS_EMAIL: ${{ secrets.DAFILMS_EMAIL }}
+          DAFILMS_PASSWORD: ${{ secrets.DAFILMS_PASSWORD }}
+        run: |
+          echo "email    len=${#DAFILMS_EMAIL}"
+          echo "password len=${#DAFILMS_PASSWORD}"
+          printf '%s' "$DAFILMS_EMAIL"    | sha256sum
+          printf '%s' "$DAFILMS_PASSWORD" | sha256sum
+
+      - name: Run tests
+        env:
+          DAFILMS_EMAIL: ${{ secrets.DAFILMS_EMAIL }}
+          DAFILMS_PASSWORD: ${{ secrets.DAFILMS_PASSWORD }}
+        run: |
+          python datools.py test
+
+  release:
+    name: Build and release
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      released: ${{ steps.check.outputs.RELEASED }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install commitizen
+        run: |
+          pip install commitizen
+
+      - name: Initialize version if needed
+        run: |
+          # Ensure we have a starting version in pyproject.toml
+          if ! grep -q "version = " pyproject.toml; then
+            echo "version = \"0.1.0\"" >> pyproject.toml
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git add pyproject.toml
+            git commit -m "chore: initialize version in pyproject.toml"
+            git push
+          fi
+
+      - name: Check if release needed
+        id: check
+        run: |
+          # Check if a version bump is needed based on commits
+          # cz bump --dry-run will show what would be bumped
+          # If it returns "No version bump needed", we skip release
+          BUMP_OUTPUT=$(cz bump --dry-run 2>&1)
+          
+          if echo "$BUMP_OUTPUT" | grep -q "No version bump needed"; then
+            echo "No version bump needed - skipping release"
+            echo "RELEASED=false" >> $GITHUB_OUTPUT
+            echo "SKIP=true" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "Version bump needed - proceeding with release"
+            echo "RELEASED=true" >> $GITHUB_OUTPUT
+            echo "SKIP=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump version and create tag
+        id: bump
+        if: steps.check.outputs.SKIP != 'true'
+        run: |
+          # Configure git
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Use commitizen to apply version bump
+          cz bump --yes
+          
+          # Push the updated version files
+          git push
+          
+          # Get the new version from pyproject.toml
+          NEW_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['tool']['commitizen']['version'])")
+          NEW_TAG=$(git describe --tags --abbrev=0)
+          
+          echo "New version: $NEW_VERSION"
+          echo "New tag: $NEW_TAG"
+          echo "VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "TAG_NAME=$NEW_TAG" >> $GITHUB_OUTPUT
+
+      - name: Push tag
+        if: steps.check.outputs.SKIP != 'true'
+        run: |
+          git push origin ${{ steps.bump.outputs.TAG_NAME }}
+
+      - name: Build addons
+        if: steps.check.outputs.SKIP != 'true'
+        run: |
+          python datools.py build ${{ steps.bump.outputs.VERSION }}
+
+      - name: List built artifacts
+        if: steps.check.outputs.SKIP != 'true'
+        run: |
+          ls -la *.zip
+
+      - name: Create Release
+        if: steps.check.outputs.SKIP != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump.outputs.TAG_NAME }}
+          name: Release ${{ steps.bump.outputs.VERSION }}
+          body: |
+            Automated release ${{ steps.bump.outputs.VERSION }}
+            
+            Changes:
+            - ${{ github.event.head_commit.message }}
+          files: |
+            plugin.video.dafilms.cz-${{ steps.bump.outputs.VERSION }}.zip
+            plugin.video.dafilms.cz.junior-${{ steps.bump.outputs.VERSION }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip release notification
+        if: steps.check.outputs.SKIP == 'true'
+        run: |
+          echo "::notice:: No version bump needed. Skipping release."
