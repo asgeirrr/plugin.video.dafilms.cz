@@ -116,6 +116,19 @@ class DAFilmsAPI:
         except requests.RequestException as e:
             raise DAFilmsAPIError(f"Network error fetching subscription films: {str(e)}") from e
 
+    def get_most_watched_films(self, page: int = 1, limit: int | None = None) -> list[FilmDetails]:
+        """Get most watched films from the Nejsledovanejsi collection"""
+        try:
+            # Use the most watched collection URL
+            url = f"{self.BASE_URL}/collection/60-nejsledovanejsi"
+            response = self.session.get(url, timeout=15)
+            response.raise_for_status()
+
+            # Reuse the existing film parsing logic
+            return self._parse_films_from_page(response.text, limit)
+        except requests.RequestException as e:
+            raise DAFilmsAPIError(f"Network error fetching most watched films: {str(e)}") from e
+
     def get_purchased_films(self) -> list[FilmDetails]:
         """Get films that the user has purchased from the payments page"""
         try:
