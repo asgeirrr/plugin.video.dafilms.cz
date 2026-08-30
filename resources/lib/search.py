@@ -73,6 +73,7 @@ def show_search_history(label):
 
     # Add "Nové hledání" as the first item
     list_item = xbmcgui.ListItem(label="Nové hledání")
+    list_item.setArt({"icon": "DefaultAddonsSearch.png"})
     url = get_url(action="search", label="Hledání")
     xbmcplugin.addDirectoryItem(_handle, url, list_item, True)
 

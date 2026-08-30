@@ -56,6 +56,7 @@ def list_menu():
 
     # Search
     list_item = xbmcgui.ListItem(label="Hledat")
+    list_item.setArt({"icon": "DefaultAddonsSearch.png"})
     url = get_url(action="search_history", label="Hledání")
     xbmcplugin.addDirectoryItem(_handle, url, list_item, True)
 
