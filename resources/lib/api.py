@@ -129,6 +129,41 @@ class DAFilmsAPI:
         except requests.RequestException as e:
             raise DAFilmsAPIError(f"Network error fetching most watched films: {str(e)}") from e
 
+    def _get_progress_film_ids(self, html_content: str) -> set[str]:
+        """Get set of film IDs that have progress indicators from HTML content."""
+        soup = BeautifulSoup(html_content, "html.parser")
+        progress_ids = set()
+
+        for card in soup.find_all("li", attrs={"data-film-item": "true"}):
+            # Check for progress bar element
+            progress_bar = card.find(class_=lambda x: x and "progress" in x.lower())
+            if not progress_bar is not None:
+                continue
+
+            link_element = card.find("a", class_="ui-movie-card__link")
+            if link_element and link_element.has_attr("href"):
+                film_url = link_element["href"]
+                film_id = film_url.split("/film/")[-1].split("/")[0]
+                if "?" in film_id:
+                    film_id = film_id.split("?")[0]
+                progress_ids.add(film_id)
+
+        return progress_ids
+
+    def get_in_progress_films(self) -> list[FilmDetails]:
+        """Get films that the user has started watching but not finished (with progress bars)."""
+        try:
+            response = self.session.get(f"{self.BASE_URL}/", timeout=15)
+            response.raise_for_status()
+
+            all_films = self._parse_films_from_page(response.text)
+            progress_ids = self._get_progress_film_ids(response.text)
+
+            return [f for f in all_films if f.id in progress_ids]
+
+        except requests.RequestException as e:
+            raise DAFilmsAPIError(f"Network error fetching in-progress films: {str(e)}") from e
+
     def get_purchased_films(self) -> list[FilmDetails]:
         """Get films that the user has purchased from the payments page"""
         try:
@@ -196,6 +231,7 @@ class DAFilmsAPI:
         """
         soup = BeautifulSoup(html_content, "html.parser")
         films = []
+        seen_ids = set()
 
         # Find all film card elements - same structure as other listings
         film_cards = soup.find_all("li", attrs={"data-film-item": "true"})
@@ -203,7 +239,7 @@ class DAFilmsAPI:
         for card in film_cards:
             # Find the main link element
             link_element = card.find("a", class_="ui-movie-card__link")
-            if not link_element:
+            if not link_element or not link_element.has_attr("href"):
                 continue
 
             film_url = link_element["href"]
@@ -231,8 +267,12 @@ class DAFilmsAPI:
 
             if not thumb:
                 img_element = card.find("img")
-                if img_element and img_element.has_attr("src"):
-                    thumb = img_element["src"]
+                if img_element:
+                    # Try data-lazy first (lazy-loaded images)
+                    if img_element.has_attr("data-lazy"):
+                        thumb = img_element["data-lazy"]
+                    elif img_element.has_attr("src") and img_element["src"] != "/img/empty.png":
+                        thumb = img_element["src"]
 
             # Extract plot/description from teaser
             plot = None
@@ -246,7 +286,10 @@ class DAFilmsAPI:
             if directors_element:
                 director = directors_element.get_text(strip=True)
 
-            films.append(FilmDetails(film_id, title, film_url, thumb, plot, director))
+            # Skip duplicates
+            if film_id not in seen_ids:
+                seen_ids.add(film_id)
+                films.append(FilmDetails(film_id, title, film_url, thumb, plot, director))
 
             if limit is not None and len(films) >= limit:
                 break

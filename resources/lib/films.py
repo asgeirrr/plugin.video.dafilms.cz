@@ -69,6 +69,18 @@ def list_most_watched_films(label):
     _populate_directory(api, films)
 
 
+def list_in_progress_films(label):
+    """List films that the user has started watching but not finished"""
+    xbmcplugin.setPluginCategory(_handle, label)
+
+    # Get session and API instance
+    session = get_session()
+    api = session.get_api()
+
+    films = api.get_in_progress_films()
+    _populate_directory(api, films)
+
+
 def list_newest_junior_films(label, category: Literal["3-6", "7-11", "12+"]) -> None:
     """Populate directory with the newest junior films in the given category."""
     xbmcplugin.setPluginCategory(_handle, label)

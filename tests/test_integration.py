@@ -111,3 +111,9 @@ def test_most_watched_films():
         assert film.url
         # URL should be an absolute URL
         assert film.url.startswith("http")
+
+
+def test_in_progress_films(api):
+    """Test in-progress films listing functionality."""
+    in_progress_films = api.get_in_progress_films()
+    assert all(isinstance(f, FilmDetails) for f in in_progress_films)

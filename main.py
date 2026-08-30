@@ -14,7 +14,7 @@ import resources.lib.api as api_module
 api_module.DAFilmsAPI.BASE_URL = "https://dafilms.cz"
 
 from resources.lib.utils import get_url
-from resources.lib.films import list_newest_films, list_subscription_films, list_purchased_films, list_most_watched_films, list_categories, list_category_films
+from resources.lib.films import list_newest_films, list_subscription_films, list_purchased_films, list_most_watched_films, list_in_progress_films, list_categories, list_category_films
 from resources.lib.search import perform_search, show_search_history
 from resources.lib.playback import play_film
 
@@ -44,6 +44,11 @@ def list_menu():
     url = get_url(action="list_most_watched", label="Nejsledovanější filmy")
     xbmcplugin.addDirectoryItem(_handle, url, list_item, True)
 
+    # In-progress films (Nedokoukané)
+    list_item = xbmcgui.ListItem(label="Nedokoukané")
+    url = get_url(action="list_in_progress", label="Nedokoukané")
+    xbmcplugin.addDirectoryItem(_handle, url, list_item, True)
+
     # Categories
     list_item = xbmcgui.ListItem(label="Speciály")
     url = get_url(action="list_categories", label="Speciály")
@@ -67,6 +72,8 @@ def router(paramstring):
         list_newest_films(params["label"])
     elif params["action"] == "list_most_watched":
         list_most_watched_films(params["label"])
+    elif params["action"] == "list_in_progress":
+        list_in_progress_films(params["label"])
     elif params["action"] == "list_subscription_films":
         list_subscription_films(params["label"])
     elif params["action"] == "list_purchased_films":
